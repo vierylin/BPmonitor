@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 智能血壓分析戰情室 Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <!-- html2pdf for export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-blue-700 text-white shadow-md p-4 flex justify-between items-center z-10">
+        <div class="flex items-center gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+            </svg>
+            <h1 class="text-2xl font-bold tracking-wider">智能血壓分析戰情室</h1>
+        </div>
+        <div class="flex gap-3">
+            <button id="btn-export-pdf" class="hidden bg-white text-blue-700 px-4 py-2 rounded shadow hover:bg-blue-50 transition">
+                匯出 PDF 報表
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-grow p-6 overflow-auto" id="main-content">
+        
+        <!-- Input Section -->
+        <section id="upload-section" class="max-w-3xl mx-auto mt-10 bg-white rounded-xl shadow-lg p-8 border border-slate-200">
+            <h2 class="text-xl font-bold mb-6 text-slate-700 border-b pb-2">📂 匯入患者檢測數據</h2>
+            
+            <form id="upload-form" class="space-y-6">
+                <!-- API Key Input -->
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-6">
+                    <label for="api-key" class="block text-sm font-semibold text-blue-800 mb-1 flex items-center gap-2">
+                        <span>🔑 LLM API Key (選填)</span>
+                    </label>
+                    <p class="text-xs text-blue-600 mb-2">輸入您的 OpenAI 或 Gemini API Key 以啟用真實 AI 分析。若未填寫，系統將使用預設的模擬結果供您預覽介面。</p>
+                    <input type="password" id="api-key" placeholder="sk-..." class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-2">上傳 Excel 或 CSV 檔案 (支援批次)</label>
+                    <div class="flex items-center justify-center w-full">
+                        <label for="file-upload" class="flex flex-col items-center justify-center w-full h-48 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100">
+                            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                <svg aria-hidden="true" class="w-10 h-10 mb-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                                <p class="mb-2 text-sm text-slate-500"><span class="font-semibold">點擊上傳</span> 或拖曳檔案至此</p>
+                                <p class="text-xs text-slate-500">.xlsx, .csv 檔案格式 (自動解析欄位)</p>
+                            </div>
+                            <input id="file-upload" type="file" class="hidden" accept=".xlsx, .csv" required />
+                        </label>
+                    </div>
+                    <div id="file-name-display" class="mt-2 text-sm text-blue-600 font-medium hidden"></div>
+                </div>
+
+                <div class="flex justify-end gap-3 mt-4">
+                    <button type="button" id="btn-demo-data" class="bg-slate-200 text-slate-700 px-6 py-2 rounded shadow hover:bg-slate-300 transition">
+                        載入測試資料
+                    </button>
+                    <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded shadow hover:bg-blue-700 transition font-medium flex items-center gap-2">
+                        <span>開始分析</span>
+                        <svg id="loading-spinner" class="animate-spin h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </form>
+            
+            <div id="upload-error" class="mt-4 text-red-600 text-sm hidden bg-red-50 p-3 rounded border border-red-200"></div>
+        </section>
+
+        <!-- Dashboard Section (Hidden by default) -->
+        <section id="dashboard-section" class="hidden flex flex-col gap-6" class="max-w-7xl mx-auto">
+            
+            <!-- Top: Patient Summary -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                    <span class="text-slate-500 text-sm font-semibold mb-1">總紀錄筆數 / 平均心率</span>
+                    <div class="flex items-end gap-2">
+                        <span id="summary-records" class="text-3xl font-bold text-slate-800">0</span>
+                        <span class="text-slate-500 text-sm mb-1">筆</span>
+                        <span class="text-slate-300 mx-2">|</span>
+                        <span id="summary-hr" class="text-xl font-bold text-slate-700">0</span>
+                        <span class="text-slate-500 text-sm mb-1">bpm</span>
+                    </div>
+                </div>
+                
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                    <span class="text-slate-500 text-sm font-semibold mb-1">平均血壓 (收縮/舒張)</span>
+                    <div class="flex items-end gap-2">
+                        <span id="summary-bp" class="text-3xl font-bold text-blue-600">0 / 0</span>
+                        <span class="text-slate-500 text-sm mb-1">mmHg</span>
+                    </div>
+                </div>
+                
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                    <span class="text-slate-500 text-sm font-semibold mb-1">早晨 vs 夜間 (SBP)</span>
+                    <div class="flex items-center justify-between">
+                        <div class="text-xl font-bold text-slate-700"><span class="text-sm font-normal text-slate-500 mr-1">早</span><span id="summary-morning">0</span></div>
+                        <div class="text-xl font-bold text-slate-700"><span class="text-sm font-normal text-slate-500 mr-1">夜</span><span id="summary-evening">0</span></div>
+                    </div>
+                    <div id="non-dipper-alert" class="text-xs mt-2 px-2 py-1 rounded bg-red-100 text-red-700 font-medium hidden items-center gap-1">
+                        ⚠️ 疑似夜間高血壓 (Non-dipper) 型態
+                    </div>
+                </div>
+
+                <div class="bg-gradient-to-br from-indigo-50 to-blue-50 p-5 rounded-xl border border-indigo-100 shadow-sm flex flex-col justify-center relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-2 opacity-10">
+                        <svg class="w-16 h-16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"></path></svg>
+                    </div>
+                    <span class="text-indigo-800 text-sm font-bold mb-1 z-10">AI 核心總結</span>
+                    <div id="llm-core-conclusion" class="text-indigo-900 text-sm font-medium z-10 leading-relaxed italic">
+                        等待資料分析中...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Middle: Interactive Charts (Redesigned for readability) -->
+            <div class="space-y-6">
+                <!-- Line Chart: Long Term Trend + Statistics -->
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col xl:flex-row gap-6">
+                    <div class="flex-grow min-w-0">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2 gap-2">
+                            <h3 class="text-lg font-bold text-slate-700 flex items-center gap-2">
+                                📈 歷史血壓波動趨勢 (Long Term Trend)
+                            </h3>
+                            <div class="flex gap-1 text-sm bg-slate-100 p-1 rounded-lg">
+                                <button id="zoom-7d" class="zoom-btn px-3 py-1 rounded bg-white text-blue-600 shadow-sm font-bold transition-colors">7天</button>
+                                <button id="zoom-1m" class="zoom-btn px-3 py-1 rounded text-slate-600 hover:bg-white hover:text-blue-600 hover:shadow-sm font-medium transition-colors">1個月</button>
+                                <button id="zoom-3m" class="zoom-btn px-3 py-1 rounded text-slate-600 hover:bg-white hover:text-blue-600 hover:shadow-sm font-medium transition-colors">3個月</button>
+                                <button id="zoom-1y" class="zoom-btn px-3 py-1 rounded text-slate-600 hover:bg-white hover:text-blue-600 hover:shadow-sm font-medium transition-colors">1年</button>
+                                <button id="zoom-all" class="zoom-btn px-3 py-1 rounded text-slate-600 hover:bg-white hover:text-blue-600 hover:shadow-sm font-medium transition-colors">全部</button>
+                            </div>
+                        </div>
+                        <div id="chart-trend" class="w-full" style="height: 450px;"></div>
+                    </div>
+                    
+                    <!-- Statistics Panel (Right Side) -->
+                    <div class="w-full xl:w-64 flex-shrink-0 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <h4 class="font-bold text-slate-700 border-b pb-2 mb-3 text-sm flex items-center gap-1">⏱️ 區間數據統計 <span class="text-xs text-slate-400 font-normal ml-auto">(隨縮放更新)</span></h4>
+                        <div class="space-y-3" id="stats-panel">
+                            <!-- Stats will be dynamically injected here -->
+                            <p class="text-xs text-slate-500 text-center mt-10">資料載入中或請拖曳圖表下方捲軸...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- SPC Chart: Anomalies -->
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center mb-4 border-b pb-2">
+                            <h3 class="text-lg font-bold text-slate-700 flex items-center gap-2">
+                                🎯 收縮壓異常偵測 (SPC Chart)
+                            </h3>
+                            <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded font-mono border">X-bar</span>
+                        </div>
+                        <div id="chart-spc" class="w-full" style="height: 380px;"></div>
+                    </div>
+
+                    <!-- Bar Chart: Stage Distribution (Moved next to SPC) -->
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center mb-4 border-b pb-2">
+                            <h3 class="text-lg font-bold text-slate-700 flex items-center gap-2">
+                                📊 血壓分級達標率 (Distribution)
+                            </h3>
+                        </div>
+                        <div id="chart-bar" class="w-full" style="height: 380px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SPC and HR chunks replaced above -->
+
+            <!-- Bottom: LLM Analysis Detailed Report -->
+            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-2 mb-10">
+                <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-3">
+                    🧠 AI 臨床分析報告與建議
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+                    <div class="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                        <h4 class="font-bold text-blue-800 mb-2 flex items-center gap-1">📊 趨勢總結</h4>
+                        <div id="llm-trend" class="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">分析載入中...</div>
+                    </div>
+                    
+                    <div class="bg-red-50/50 p-4 rounded-lg border border-red-100">
+                        <h4 class="font-bold text-red-800 mb-2 flex items-center gap-1">⚠️ 可能風險提示</h4>
+                        <div id="llm-risk" class="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">分析載入中...</div>
+                        
+                        <div class="mt-3 text-xs bg-white border border-red-200 rounded p-2 hidden" id="spc-alerts-container">
+                            <strong class="text-red-700 block mb-1">SPC 異常點偵測：</strong>
+                            <ul class="list-disc pl-4 text-red-600 space-y-1" id="spc-alerts-list">
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-green-50/50 p-4 rounded-lg border border-green-100">
+                        <h4 class="font-bold text-green-800 mb-2 flex items-center gap-1">💡 臨床處置建議</h4>
+                        <div id="llm-suggestion" class="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">分析載入中...</div>
+                    </div>
+                </div>
+            </div>
+            
+        </section>
+        
+    </main>
+    
+    <script src="js/app.js"></script>
+</body>
+</html>

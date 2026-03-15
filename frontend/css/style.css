@@ -1,0 +1,36 @@
+/* 自訂捲軸樣式，讓醫療面板看起來更乾淨 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #f1f5f9; 
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1; 
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8; 
+}
+
+/* 列印 / PDF 匯出時的處理 */
+@media print {
+    body {
+        background-color: white !important;
+    }
+    header, #upload-section {
+        display: none !important;
+    }
+    #dashboard-section {
+        display: flex !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+        box-shadow: none !important;
+    }
+    .shadow-sm, .shadow-md, .shadow-lg {
+        box-shadow: none !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+}
